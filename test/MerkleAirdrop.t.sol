@@ -11,6 +11,7 @@ import {DeployMerkleAirdrop} from "script/DeployMerkleAirdrop.s.sol";
 contract MerkleAirdropTest is ZkSyncChainChecker, Test {
     MerkleAirdrop public airdrop;
     BagelToken public token;
+    address gasPayer;
     address user;
     uint256 userPrivateKey;
 
@@ -33,13 +34,18 @@ contract MerkleAirdropTest is ZkSyncChainChecker, Test {
         }
 
         (user, userPrivateKey) = makeAddrAndKey("user");
+        gasPayer = makeAddr("gasPayer");
     }
 
     function testUsersCanClaim() public {
         uint256 startingBalance = token.balanceOf(user);
+        bytes32 digest = airdrop.getMessageHash(user, AMOUNT_TO_CLAIM);
 
-        vm.prank(user);
-        airdrop.claim(user, AMOUNT_TO_CLAIM, PROOF);
+        // user signs a message and then the gasPayer calls claim on their behalf to send the tranaction and pay the gas fees
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
+
+        vm.prank(gasPayer);
+        airdrop.claim(user, AMOUNT_TO_CLAIM, PROOF, v, r, s);
 
         uint256 endingBalance = token.balanceOf(user);
         console.log("Starting balance: %d, Ending balance: %d", startingBalance, endingBalance);
